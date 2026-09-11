@@ -1,0 +1,27 @@
+dt = c(30, 40, 20, 50, 30, 60)
+ut = c(NA)
+t = length(dt)
+for (i in 2:t)
+{
+  ut[i] = mean(dt)
+}
+et = c(NA)
+etm = c(NA)
+for (i in 2:t)
+{
+    etm[i] = abs(et[i])
+}
+MAE = 0
+MAPE = 0
+MSE = 0
+RMSE = 0
+for (i in 2:t)
+{
+ MAE = MAE + etm[i]
+ MAPE = MAPE + etm[i]/dt[i]
+ MSE = MSE + etm[i]^2
+}
+MAE = MAE * (1/(t-1))
+MAPE = MAPE * (1/(t-1))
+MSE = MSE * (1/(t-1))
+RMSE = sqrt(MSE)
