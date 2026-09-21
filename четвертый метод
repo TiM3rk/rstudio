@@ -1,0 +1,33 @@
+date <- read.csv(file.choose())
+dt = c()
+dt = date[[1]]
+n = 3
+mt = c(0)
+k = 1
+t = length(dt)
+for (i in 0:t)
+{
+  mt[k] = mt[k] + dt(i+n)
+  i = i + n + 1
+  mt[k] = mt[k]/n
+  k = k+1
+}
+mtm = c(0)
+for (i in 1:t)
+{
+  mtm[i] = abs(mt[i])
+}
+MAE = 0
+MAPE = 0
+MSE = 0
+RMSE = 0
+for (i in 1:t)
+{
+  MAE = MAE + mtm[i]
+  MAPE = MAPE + mtm[i]/dt[i]
+  MSE = MSE + mtm[i]^2
+}
+MAE = MAE * (1/(t-1))
+MAPE = MAPE * (1/(t-1))
+MSE = MSE * (1/(t-1))
+RMSE = sqrt(MSE)
