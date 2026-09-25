@@ -1,0 +1,62 @@
+dt = c(30, 40, 20, 50, 30, 60)
+n = 0.78
+ut = c(30)
+t = length(dt)
+for (i in 2:t)
+{
+  ut[i] = n*dt[i-1]+(1-n)*ut[i-1]
+  i = i + 1
+}
+et = c(0)
+for (i in 1:t)
+{
+  et[i] = dt[i] - ut[i]
+  i = i + 1
+}
+etm = c(0)
+for (i in 1:t)
+{
+  etm[i] = abs(et[i])
+}
+MAE = 0
+MAPE = c(0)
+MSE = 0
+RMSE = 0
+for (i in 2:t)
+{
+  MAE = MAE + etm[i]
+  MSE = MSE + etm[i]^2
+  i = i + 1
+}
+MAE = MAE * (1/(t-1))
+MSE = MSE * (1/(t-1))
+RMSE = sqrt(MSE)
+
+for (n_now in 1:999)
+{
+  ut_now = c(30)
+  
+  for (i in 2:t)
+  {
+    ut_now[i] = (n_now/1000)*dt[i-1]+(1-(n_now/1000))*ut_now[i-1]
+    i = i + 1
+  }
+  
+  et_now = c(0)
+  
+  for (i in 1:t)
+  {
+    et_now[i] = dt[i] - ut_now[i]
+    i = i + 1
+  }
+  
+  for (i in 2:t)
+  {
+    MAPE[n_now] = MAPE[n_now] + abs(et_now[i]/dt[i])
+    i = i + 1
+  }
+  
+  MAPE[n_now] = MAPE[n_now] * (1/(t-1))
+  n_now = n_now + 1
+}
+min_Mape = min(MAPE)
