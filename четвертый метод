@@ -7,10 +7,14 @@ k = 1
 t = length(dt)
 for (i in 0:t)
 {
-  mt[k] = mt[k] + dt(i+n)
-  i = i + n + 1
-  mt[k] = mt[k]/n
-  k = k+1
+  while (n > 0)
+  {
+  mt[i] = mt[i] + dt[i+n]
+  n = n - 1
+  }
+  n = 3
+  mt[i] = mt[i]/n
+  i = i+1
 }
 mtm = c(0)
 for (i in 1:t)
