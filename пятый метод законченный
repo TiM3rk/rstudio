@@ -1,0 +1,69 @@
+dt = c(30, 40, 20, 50, 30, 60)
+ut = c(dt[1])
+et = c(dt[1]-ut[1])
+t = length(dt)
+bt = c(dt[2]-dt[1])
+
+MAPE_min = 999
+n_min = 0
+ut_min = c()
+bt_min = c()
+et_min = c()
+etm_min = c()
+
+MAPE = 0
+for (j in 1:999)
+{  
+  n = j/1000
+  for (i in 2:t)
+  {
+    bt[i] = bt[i-1] + et[i-1] * ((1 - n)^2)
+    ut[i] = ut[i-1] + bt[i-1] + (1 - n^2) * et[i-1]
+    et[i] = c(dt[i] - ut[i])
+    i = i + 1
+  }
+  etm = c(0)
+  for (i in 1:t)
+  {
+    etm[i] = abs(et[i])
+    i = i + 1
+  }
+  for (i in 2:t)
+  {
+  MAPE = MAPE + abs(et[i]/dt[i])
+  i = i + 1
+  }
+  MAPE = MAPE * (1/(t-1))
+  if(MAPE<MAPE_min)
+  {
+    MAPE_min = MAPE
+    n_min = n
+      for (i in 1:t)
+      {
+        ut_min[i] = ut[i]
+        bt_min[i] = bt[i]
+        et_min[i] = et[i]
+        etm_min[i] = etm[i]
+        i = i + 1
+      }
+  }
+}
+
+
+
+
+
+
+
+MAE = 0
+MSE = 0
+RMSE = 0
+for (i in 2:t)
+{
+  MAE = MAE + etm_min[i]
+  MSE = MSE + etm_min[i]^2
+  i = i + 1
+}
+MAE = MAE * (1/(t-1))
+MSE = MSE * (1/(t-1))
+RMSE = sqrt(MSE)
