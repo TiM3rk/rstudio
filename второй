@@ -1,9 +1,8 @@
 # Чтение данных из файла
-data <- read.csv("data.csv")   # или read.table("data.txt", header = TRUE)
-dt <- data$dt
-
-# Если файл без заголовка:
-# dt <- read.table("data.txt")$V1
+# Предполагается, что файл data.csv содержит столбец dt
+date <- read.csv(file.choose())
+dt = c()
+dt = date[[1]]
 
 # Прогноз как среднее значение ряда
 t <- length(dt)
