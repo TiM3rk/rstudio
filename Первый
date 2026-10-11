@@ -1,7 +1,8 @@
 # Чтение данных из файла
 # Предполагается, что файл data.csv содержит столбец dt
 date <- read.csv(file.choose())
-
+dt = c()
+dt = date[[1]]
 # Инициализация векторов
 ut <- c(NA)
 t <- length(dt)
