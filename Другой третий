@@ -1,0 +1,57 @@
+# Чтение данных из файла
+date <- read.csv(file.choose())
+dt <- date[[1]]
+t <- length(dt)
+
+# Скользящее среднее с окном n = 3
+n_win <- 3
+mt <- rep(NA, t)
+for (i in 1:(t - n_win + 1)) {
+  mt[i] <- mean(dt[i:(i + n_win - 1)])
+}
+
+# Ошибки (факт минус прогноз)
+et  <- dt - mt
+etm <- abs(et)
+
+# Метрики (без NA)
+valid <- !is.na(etm)
+MAE  <- mean(etm[valid])
+MAPE <- mean(etm[valid] / dt[valid])
+MSE  <- mean(etm[valid]^2)
+RMSE <- sqrt(MSE)
+
+# Вывод метрик
+cat("Метод: скользящее среднее (окно =", n_win, ")\n")
+cat("MAE  =", MAE,  "\n")
+cat("MAPE =", MAPE, "\n")
+cat("MSE  =", MSE,  "\n")
+cat("RMSE =", RMSE, "\n\n")
+
+# Графики
+par(mfrow = c(2, 2))
+
+# 1. Исходный ряд dt
+plot(dt, type = "o", col = "blue", pch = 16,
+     main = "Исходный ряд dt", xlab = "Индекс", ylab = "dt")
+grid()
+
+# 2. Факт dt и скользящее среднее mt
+plot(dt, type = "o", col = "blue", pch = 16,
+     ylim = range(c(dt, mt), na.rm = TRUE),
+     main = "Факт dt и скользящее среднее mt",
+     xlab = "Индекс", ylab = "Значение")
+lines(mt, type = "o", col = "red", pch = 17)
+legend("topleft", legend = c("dt (факт)", "mt (сглаженное)"),
+       col = c("blue", "red"), pch = c(16, 17), lty = 1)
+
+# 3. Ошибки et
+plot(et, type = "o", col = "darkgreen", pch = 16,
+     main = "Ошибки et = dt - mt", xlab = "Индекс", ylab = "et")
+abline(h = 0, lty = 2, col = "gray")
+grid()
+
+# 4. Метрики качества
+barplot(c(MAE = MAE, MAPE = MAPE, MSE = MSE, RMSE = RMSE),
+        col = c("steelblue", "orange", "tomato", "seagreen"),
+        main = "Метрики качества", ylab = "Значение")
