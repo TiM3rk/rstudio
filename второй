@@ -1,27 +1,72 @@
-dt = c(30, 40, 20, 50, 30, 60)
-ut = c(NA)
-t = length(dt)
-for (i in 2:t)
-{
+# Чтение данных из файла
+data <- read.csv("data.csv")   # или read.table("data.txt", header = TRUE)
+dt <- data$dt
+
+# Если файл без заголовка:
+# dt <- read.table("data.txt")$V1
+
+# Прогноз как среднее значение ряда
+t <- length(dt)
+ut <- c(NA)
+for (i in 2:t) {
   ut[i] = mean(dt)
 }
-et = c(NA)
-etm = c(NA)
-for (i in 2:t)
-{
-    etm[i] = abs(et[i])
+
+# Ошибки
+et  <- c(NA)
+etm <- c(NA)
+for (i in 2:t) {
+  et[i]  = dt[i] - ut[i]
+  etm[i] = abs(et[i])
 }
+
+# Метрики
 MAE = 0
 MAPE = 0
 MSE = 0
 RMSE = 0
-for (i in 2:t)
-{
- MAE = MAE + etm[i]
- MAPE = MAPE + etm[i]/dt[i]
- MSE = MSE + etm[i]^2
+for (i in 2:t) {
+  MAE  = MAE + etm[i]
+  MAPE = MAPE + etm[i]/dt[i]
+  MSE  = MSE + etm[i]^2
 }
-MAE = MAE * (1/(t-1))
+MAE  = MAE  * (1/(t-1))
 MAPE = MAPE * (1/(t-1))
-MSE = MSE * (1/(t-1))
+MSE  = MSE  * (1/(t-1))
 RMSE = sqrt(MSE)
+
+# Вывод метрик
+cat("Метод: прогноз = среднее значение dt\n")
+cat("MAE  =", MAE, "\n")
+cat("MAPE =", MAPE, "\n")
+cat("MSE  =", MSE, "\n")
+cat("RMSE =", RMSE, "\n\n")
+
+# Графики
+par(mfrow = c(2, 2))
+
+# 1. Исходный ряд dt
+plot(dt, type = "o", col = "blue", pch = 16,
+     main = "Исходный ряд dt", xlab = "Индекс", ylab = "dt")
+abline(h = mean(dt), col = "gray", lty = 2)
+grid()
+
+# 2. Факт dt и прогноз ut (среднее)
+plot(dt, type = "o", col = "blue", pch = 16,
+     ylim = range(c(dt, ut), na.rm = TRUE),
+     main = "Факт dt и прогноз ut = mean(dt)",
+     xlab = "Индекс", ylab = "Значение")
+lines(ut, type = "o", col = "red", pch = 17)
+legend("topleft", legend = c("dt (факт)", "ut (прогноз)"),
+       col = c("blue", "red"), pch = c(16, 17), lty = 1)
+
+# 3. Ошибки et
+plot(et, type = "o", col = "darkgreen", pch = 16,
+     main = "Ошибки et = dt - ut", xlab = "Индекс", ylab = "et")
+abline(h = 0, lty = 2, col = "gray")
+grid()
+
+# 4. Метрики качества
+barplot(c(MAE = MAE, MAPE = MAPE, MSE = MSE, RMSE = RMSE),
+        col = c("steelblue", "orange", "tomato", "seagreen"),
+        main = "Метрики качества", ylab = "Значение")
