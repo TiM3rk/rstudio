@@ -1,11 +1,6 @@
 # Чтение данных из файла
 # Предполагается, что файл data.csv содержит столбец dt
-# (если файл в другом формате — измените read.csv/read.table соответственно)
-data <- read.csv("data.csv")  # или read.table("data.txt", header = TRUE)
-dt <- data$dt
-
-# Если файл содержит одну колонку без заголовка, используйте:
-# dt <- read.table("data.txt")$V1
+date <- read.csv(file.choose())
 
 # Инициализация векторов
 ut <- c(NA)
