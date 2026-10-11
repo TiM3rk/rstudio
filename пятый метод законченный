@@ -53,12 +53,6 @@ for (j in 1:999)
   }
 }
 
-
-
-
-
-
-
 MAE = 0
 MSE = 0
 RMSE = 0
@@ -71,3 +65,33 @@ for (i in 2:t)
 MAE = MAE * (1/(t-1))
 MSE = MSE * (1/(t-1))
 RMSE = sqrt(MSE)
+
+# --- Построение графиков ---
+par(mfrow = c(2, 2))
+
+# 1. Исходный ряд dt
+plot(dt, type = "o", col = "blue", pch = 16,
+     main = "Исходный ряд dt", xlab = "Индекс", ylab = "dt")
+grid()
+
+# 2. Факт dt и оптимальный прогноз ut_min
+plot(dt, type = "o", col = "blue", pch = 16,
+     ylim = range(c(dt, ut_min), na.rm = TRUE),
+     main = paste0("Факт dt и прогноз ut (n* = ", n_min, ")"),
+     xlab = "Индекс", ylab = "Значение")
+lines(ut_min, type = "o", col = "red", pch = 17)
+legend("topleft", legend = c("dt (факт)", "ut_min (прогноз)"),
+       col = c("blue", "red"), pch = c(16, 17), lty = 1)
+
+# 3. Ошибки et_min
+plot(et_min, type = "o", col = "darkgreen", pch = 16,
+     main = "Ошибки et_min = dt - ut_min",
+     xlab = "Индекс", ylab = "et_min")
+abline(h = 0, lty = 2, col = "gray")
+grid()
+
+# 4. Метрики качества
+barplot(c(MAE = MAE, MAPE = MAPE_min, MSE = MSE, RMSE = RMSE),
+        col = c("steelblue", "orange", "tomato", "seagreen"),
+        main = paste0("Метрики (n* = ", n_min, ")"),
+        ylab = "Значение")
