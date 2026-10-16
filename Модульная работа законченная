@@ -1,0 +1,311 @@
+# ============================================================
+# 0. ПОДКЛЮЧЕНИЕ БИБЛИОТЕК И ЧТЕНИЕ ДАННЫХ ИЗ EXCEL
+# ============================================================
+if (!require("readxl")) install.packages("readxl")
+library(readxl)
+
+cat("Выберите Excel-файл со столбцом dt...\n")
+file_path <- file.choose()
+data <- read_excel(file_path)
+
+dt <- as.numeric(data[[1]])
+dt <- dt[!is.na(dt)]
+t  <- length(dt)
+
+if (t < 6) stop("Для скользящего среднего с окном до 5 нужно минимум 6 наблюдений.")
+
+# ============================================================
+# 1. МЕТОД 1: ПРОГНОЗ = ПРЕДЫДУЩЕЕ ЗНАЧЕНИЕ
+# ============================================================
+method1 <- function(dt) {
+  t  <- length(dt)
+  ut <- c(NA, dt[1:(t-1)])
+  et <- dt - ut
+  etm <- abs(et)
+  n <- t - 1
+  MAE  <- sum(etm[2:t]) / n
+  MAPE <- sum(etm[2:t] / dt[2:t]) / n
+  MSE  <- sum(etm[2:t]^2) / n
+  RMSE <- sqrt(MSE)
+  ut_next <- dt[t]
+  list(name = "Метод 1 (ut = dt[i-1])",
+       ut = ut, et = et,
+       MAE = MAE, MAPE = MAPE, MSE = MSE, RMSE = RMSE,
+       ut_next = ut_next)
+}
+
+# ============================================================
+# 2. МЕТОД 2: ПРОГНОЗ = СРЕДНЕЕ ЗНАЧЕНИЕ РЯДА
+# ============================================================
+method2 <- function(dt) {
+  t  <- length(dt)
+  m  <- mean(dt)
+  ut <- c(NA, rep(m, t - 1))
+  et <- dt - ut
+  etm <- abs(et)
+  n <- t - 1
+  MAE  <- sum(etm[2:t]) / n
+  MAPE <- sum(etm[2:t] / dt[2:t]) / n
+  MSE  <- sum(etm[2:t]^2) / n
+  RMSE <- sqrt(MSE)
+  ut_next <- m
+  list(name = "Метод 2 (ut = mean(dt))",
+       ut = ut, et = et,
+       MAE = MAE, MAPE = MAPE, MSE = MSE, RMSE = RMSE,
+       ut_next = ut_next)
+}
+
+# ============================================================
+# 3. МЕТОД 3: СКОЛЬЗЯЩЕЕ СРЕДНЕЕ, n = 2..5
+# ============================================================
+method3 <- function(dt, n_min = 2, n_max = 5) {
+  t <- length(dt)
+  if (n_max > t - 1) n_max <- t - 1
+  if (n_min > n_max) stop("Некорректный диапазон n для скользящего среднего.")
+  
+  run_ma <- function(n_ma) {
+    mt <- rep(NA, t)
+    for (i in n_ma:t) {
+      mt[i] <- mean(dt[(i - n_ma + 1):i])
+    }
+    et  <- dt - mt
+    etm <- abs(et)
+    idx <- which(!is.na(et))
+    k   <- length(idx)
+    MAPE <- sum(etm[idx] / dt[idx]) / k
+    list(mt = mt, et = et, etm = etm, idx = idx, MAPE = MAPE)
+  }
+  
+  n_grid   <- n_min:n_max
+  res_list <- lapply(n_grid, run_ma)
+  MAPE_vec <- sapply(res_list, function(x) x$MAPE)
+  idx_best <- which.min(MAPE_vec)
+  n_best   <- n_grid[idx_best]
+  best     <- res_list[[idx_best]]
+  
+  idx <- best$idx
+  k   <- length(idx)
+  MAE  <- sum(best$etm[idx]) / k
+  MSE  <- sum(best$etm[idx]^2) / k
+  RMSE <- sqrt(MSE)
+  
+  ut_next <- mean(dt[(t - n_best + 1):t])
+  
+  list(name = paste0("Метод 3 (скользящее среднее, n*=", n_best, ")"),
+       ut = best$mt, et = best$et,
+       MAE = MAE, MAPE = best$MAPE, MSE = MSE, RMSE = RMSE,
+       ut_next = ut_next,
+       n_best = n_best, MAPE_grid = MAPE_vec, n_grid = n_grid)
+}
+
+# ============================================================
+# 4. МЕТОД 4: ЭКСПОНЕНЦИАЛЬНОЕ СГЛАЖИВАНИЕ (подбор n)
+# ============================================================
+method4 <- function(dt) {
+  t <- length(dt)
+  ut0 <- dt[1]
+  
+  calc_MAPE <- function(n) {
+    ut <- numeric(t)
+    ut[1] <- ut0
+    for (i in 2:t) {
+      ut[i] <- n * dt[i - 1] + (1 - n) * ut[i - 1]
+    }
+    et <- dt - ut
+    mean(abs(et[2:t] / dt[2:t]))
+  }
+  
+  n_grid <- seq(0.001, 0.999, by = 0.001)
+  MAPE_grid <- sapply(n_grid, calc_MAPE)
+  n_best <- n_grid[which.min(MAPE_grid)]
+  MAPE_best <- min(MAPE_grid)
+  
+  ut <- numeric(t)
+  ut[1] <- ut0
+  for (i in 2:t) {
+    ut[i] <- n_best * dt[i - 1] + (1 - n_best) * ut[i - 1]
+  }
+  et  <- dt - ut
+  etm <- abs(et)
+  k   <- t - 1
+  MAE  <- sum(etm[2:t]) / k
+  MSE  <- sum(etm[2:t]^2) / k
+  RMSE <- sqrt(MSE)
+  
+  ut_next <- n_best * dt[t] + (1 - n_best) * ut[t]
+  
+  list(name = paste0("Метод 4 (эксп. сглаж., n*=", round(n_best, 3), ")"),
+       ut = ut, et = et,
+       MAE = MAE, MAPE = MAPE_best, MSE = MSE, RMSE = RMSE,
+       ut_next = ut_next,
+       n_best = n_best, MAPE_grid = MAPE_grid, n_grid = n_grid)
+}
+
+# ============================================================
+# 5. МЕТОД 5: АДАПТИВНАЯ МОДЕЛЬ (подбор n, ut и bt)
+# ============================================================
+method5 <- function(dt) {
+  t <- length(dt)
+  
+  run_model <- function(n) {
+    ut <- numeric(t); bt <- numeric(t); et <- numeric(t)
+    ut[1] <- dt[1]
+    bt[1] <- dt[2] - dt[1]
+    et[1] <- 0
+    for (i in 2:t) {
+      bt[i] <- bt[i - 1] + et[i - 1] * ((1 - n)^2)
+      ut[i] <- ut[i - 1] + bt[i - 1] + (1 - n^2) * et[i - 1]
+      et[i] <- dt[i] - ut[i]
+    }
+    etm <- abs(et)
+    MAPE <- sum(abs(et[2:t] / dt[2:t])) / (t - 1)
+    list(ut = ut, bt = bt, et = et, etm = etm, MAPE = MAPE)
+  }
+  
+  n_grid <- (1:999) / 1000
+  res_list <- lapply(n_grid, run_model)
+  MAPE_vec <- sapply(res_list, function(x) x$MAPE)
+  idx_best <- which.min(MAPE_vec)
+  n_best   <- n_grid[idx_best]
+  best     <- res_list[[idx_best]]
+  
+  k <- t - 1
+  MAE  <- sum(best$etm[2:t]) / k
+  MSE  <- sum(best$etm[2:t]^2) / k
+  RMSE <- sqrt(MSE)
+  
+  ut_next <- best$ut[t] + best$bt[t] + (1 - n_best^2) * best$et[t]
+  
+  list(name = paste0("Метод 5 (адаптивная, n*=", round(n_best, 3), ")"),
+       ut = best$ut, et = best$et,
+       MAE = MAE, MAPE = best$MAPE, MSE = MSE, RMSE = RMSE,
+       ut_next = ut_next,
+       n_best = n_best,
+       bt = best$bt,
+       MAPE_grid = MAPE_vec, n_grid = n_grid)
+}
+
+# ============================================================
+# 6. ЗАПУСК ВСЕХ МЕТОДОВ И ВЫБОР ЛУЧШЕГО ПО MAPE
+# ============================================================
+res1 <- method1(dt)
+res2 <- method2(dt)
+res3 <- method3(dt, n_min = 2, n_max = 5)
+res4 <- method4(dt)
+res5 <- method5(dt)
+
+results  <- list(res1, res2, res3, res4, res5)
+MAPE_all <- sapply(results, function(r) r$MAPE)
+best_idx <- which.min(MAPE_all)
+best     <- results[[best_idx]]
+
+cat("\n========== СРАВНЕНИЕ МЕТОДОВ ==========\n")
+summary_df <- data.frame(
+  Метод = sapply(results, function(r) r$name),
+  MAPE  = round(sapply(results, function(r) r$MAPE), 5),
+  MAE   = round(sapply(results, function(r) r$MAE),  5),
+  MSE   = round(sapply(results, function(r) r$MSE),  5),
+  RMSE  = round(sapply(results, function(r) r$RMSE), 5)
+)
+print(summary_df, row.names = FALSE)
+
+# ---------- Прогнозы ut[t+1] по каждому методу ----------
+cat("\n========== ПРОГНОЗ ut[t+1] ПО КАЖДОМУ МЕТОДУ ==========\n")
+for (i in seq_along(results)) {
+  r <- results[[i]]
+  cat(sprintf("%-45s ut[t+1] = %.5f\n", r$name, r$ut_next))
+}
+
+# ---------- Лучший метод ----------
+cat("\n>>> ЛУЧШИЙ МЕТОД:", best$name, "\n")
+cat(">>> MAPE лучшего метода:", round(best$MAPE, 5), "\n")
+cat(">>> Итоговый прогноз ut[t+1] =", round(best$ut_next, 5), "\n")
+
+# ============================================================
+# 6a. ПАРАМЕТРЫ МЕТОДА 3 (скользящее среднее, n = 2..5)
+# ============================================================
+cat("\n--- Метод 3: MAPE для каждого n (2..5) ---\n")
+for (i in seq_along(res3$n_grid)) {
+  cat(sprintf("  n = %d -> MAPE = %.5f\n",
+              res3$n_grid[i], res3$MAPE_grid[i]))
+}
+cat(sprintf("  Оптимальное n* = %d (MAPE = %.5f)\n",
+            res3$n_best, res3$MAPE))
+cat(sprintf("  Прогноз ut[t+1] = %.5f\n", res3$ut_next))
+
+# ============================================================
+# 6b. ПАРАМЕТРЫ МЕТОДА 4
+# ============================================================
+cat("\n--- Метод 4: параметры экспоненциального сглаживания ---\n")
+cat(sprintf("  Диапазон перебора n: %.3f .. %.3f, шаг = 0.001\n",
+            min(res4$n_grid), max(res4$n_grid)))
+cat(sprintf("  Оптимальное n* = %.3f\n", res4$n_best))
+cat(sprintf("  MAPE при n*    = %.5f\n", res4$MAPE))
+cat(sprintf("  MAE  при n*    = %.5f\n", res4$MAE))
+cat(sprintf("  MSE  при n*    = %.5f\n", res4$MSE))
+cat(sprintf("  RMSE при n*    = %.5f\n", res4$RMSE))
+cat(sprintf("  Прогноз ut[t+1] = %.5f\n", res4$ut_next))
+ord4 <- order(res4$MAPE_grid)[1:5]
+cat("  Топ-5 значений n по MAPE:\n")
+for (k in ord4) {
+  cat(sprintf("    n = %.3f -> MAPE = %.5f\n",
+              res4$n_grid[k], res4$MAPE_grid[k]))
+}
+
+# ============================================================
+# 6c. ПАРАМЕТРЫ МЕТОДА 5
+# ============================================================
+cat("\n--- Метод 5: параметры адаптивной модели ---\n")
+cat(sprintf("  Диапазон перебора n: %.3f .. %.3f, шаг = 0.001\n",
+            min(res5$n_grid), max(res5$n_grid)))
+cat(sprintf("  Оптимальное n* = %.3f\n", res5$n_best))
+cat(sprintf("  MAPE при n*    = %.5f\n", res5$MAPE))
+cat(sprintf("  MAE  при n*    = %.5f\n", res5$MAE))
+cat(sprintf("  MSE  при n*    = %.5f\n", res5$MSE))
+cat(sprintf("  RMSE при n*    = %.5f\n", res5$RMSE))
+cat(sprintf("  bt[t]  = %.5f\n", res5$bt[t]))
+cat(sprintf("  Прогноз ut[t+1] = %.5f\n", res5$ut_next))
+ord5 <- order(res5$MAPE_grid)[1:5]
+cat("  Топ-5 значений n по MAPE:\n")
+for (k in ord5) {
+  cat(sprintf("    n = %.3f -> MAPE = %.5f\n",
+              res5$n_grid[k], res5$MAPE_grid[k]))
+}
+
+# ============================================================
+# 7. ГРАФИКИ
+# ============================================================
+par(mfrow = c(2, 2))
+
+# 1. Исходный ряд
+plot(dt, type = "o", col = "blue", pch = 16,
+     main = "Исходный ряд dt", xlab = "Индекс", ylab = "dt")
+grid()
+
+# 2. Факт и прогноз лучшего метода
+ut_best <- best$ut
+plot(dt, type = "o", col = "blue", pch = 16,
+     ylim = range(c(dt, ut_best, best$ut_next), na.rm = TRUE),
+     main = paste0("Лучший метод: ", best$name),
+     xlab = "Индекс", ylab = "Значение")
+lines(ut_best, type = "o", col = "red", pch = 17)
+points(t + 1, best$ut_next, col = "darkred", pch = 18, cex = 1.6)
+legend("topleft",
+       legend = c("dt (факт)", "ut (прогноз)", "ut[t+1]"),
+       col = c("blue", "red", "darkred"),
+       pch = c(16, 17, 18), lty = c(1, 1, NA))
+
+# 3. Ошибки лучшего метода
+plot(best$et, type = "o", col = "darkgreen", pch = 16,
+     main = "Ошибки et лучшего метода",
+     xlab = "Индекс", ylab = "et")
+abline(h = 0, lty = 2, col = "gray")
+grid()
+
+# 4. Сравнение MAPE по методам
+barplot(MAPE_all,
+        names.arg = c("M1", "M2", "M3", "M4", "M5"),
+        col = c("steelblue", "orange", "tomato", "seagreen", "purple"),
+        main = "Сравнение MAPE по методам",
+        ylab = "MAPE")
+abline(h = best$MAPE, col = "red", lty = 2)
