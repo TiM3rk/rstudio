@@ -1,0 +1,179 @@
+# ============================================================
+# Чтение данных из файла
+# ============================================================
+date <- read.csv(file.choose())
+dt <- date[[1]]
+t <- length(dt)
+
+# ============================================================
+# Служебные векторы для хранения результатов по каждому методу
+# ============================================================
+methods <- c("Метод 1: ut[i] = dt[i-1]",
+             "Метод 2: ut[i] = mean(dt)",
+             "Метод 3: скользящее среднее (окно 3)",
+             "Метод 4: экспоненциальное сглаживание (подбор n)")
+
+MAPE_all <- rep(NA, 4)
+MAE_all  <- rep(NA, 4)
+MSE_all  <- rep(NA, 4)
+RMSE_all <- rep(NA, 4)
+ut_all   <- vector("list", 4)
+n_best_all <- rep(NA, 4)   # для методов с подбором параметра
+
+# ============================================================
+# Метод 1: ut[i] = dt[i-1]  (наивный прогноз)
+# ============================================================
+ut1 <- c(NA)
+for (i in 2:t) {
+  ut1[i] = dt[i-1]
+}
+et1  <- dt - ut1
+etm1 <- abs(et1)
+valid1 <- !is.na(etm1)
+MAE_all[1]  <- mean(etm1[valid1])
+MAPE_all[1] <- mean(etm1[valid1] / dt[valid1])
+MSE_all[1]  <- mean(etm1[valid1]^2)
+RMSE_all[1] <- sqrt(MSE_all[1])
+ut_all[[1]] <- ut1
+
+# ============================================================
+# Метод 2: ut[i] = mean(dt)  (прогноз средним)
+# ============================================================
+ut2 <- c(NA)
+for (i in 2:t) {
+  ut2[i] = mean(dt)
+}
+et2  <- dt - ut2
+etm2 <- abs(et2)
+valid2 <- !is.na(etm2)
+MAE_all[2]  <- mean(etm2[valid2])
+MAPE_all[2] <- mean(etm2[valid2] / dt[valid2])
+MSE_all[2]  <- mean(etm2[valid2]^2)
+RMSE_all[2] <- sqrt(MSE_all[2])
+ut_all[[2]] <- ut2
+
+# ============================================================
+# Метод 3: скользящее среднее (окно 3)
+# ============================================================
+n_win <- 3
+ut3 <- rep(NA, t)
+for (i in 1:(t - n_win + 1)) {
+  ut3[i] <- mean(dt[i:(i + n_win - 1)])
+}
+et3  <- dt - ut3
+etm3 <- abs(et3)
+valid3 <- !is.na(etm3)
+MAE_all[3]  <- mean(etm3[valid3])
+MAPE_all[3] <- mean(etm3[valid3] / dt[valid3])
+MSE_all[3]  <- mean(etm3[valid3]^2)
+RMSE_all[3] <- sqrt(MSE_all[3])
+ut_all[[3]] <- ut3
+
+# ============================================================
+# Метод 4: экспоненциальное сглаживание с подбором n
+# ============================================================
+ut4_best <- c(dt[1])
+et4_best <- c(dt[1] - ut4_best[1])
+MAPE_best4 <- Inf
+n_best4 <- NA
+
+for (j in 1:999) {
+  n_now <- j/1000
+  ut_now <- c(dt[1])
+  for (i in 2:t) {
+    ut_now[i] = n_now*dt[i-1] + (1 - n_now)*ut_now[i-1]
+  }
+  et_now  <- dt - ut_now
+  etm_now <- abs(et_now)
+  MAPE_now <- mean(etm_now[2:t] / dt[2:t])
+  if (MAPE_now < MAPE_best4) {
+    MAPE_best4 <- MAPE_now
+    n_best4 <- n_now
+    ut4_best <- ut_now
+    et4_best <- et_now
+  }
+}
+etm4_best <- abs(et4_best)
+valid4 <- !is.na(etm4_best)
+MAE_all[4]  <- mean(etm4_best[valid4])
+MAPE_all[4] <- MAPE_best4
+MSE_all[4]  <- mean(etm4_best[valid4]^2)
+RMSE_all[4] <- sqrt(MSE_all[4])
+ut_all[[4]] <- ut4_best
+n_best_all[4] <- n_best4
+
+# ============================================================
+# Выбор лучшего метода по MAPE
+# ============================================================
+best_idx <- which.min(MAPE_all)
+best_name <- methods[best_idx]
+best_ut   <- ut_all[[best_idx]]
+best_et   <- dt - best_ut
+
+# ============================================================
+# Вывод результатов в консоль
+# ============================================================
+cat("============================================\n")
+cat("           Сравнение методов\n")
+cat("============================================\n")
+for (k in 1:4) {
+  cat(sprintf("%-45s\n", methods[k]))
+  cat(sprintf("   MAE  = %.5f\n", MAE_all[k]))
+  cat(sprintf("   MAPE = %.5f\n", MAPE_all[k]))
+  cat(sprintf("   MSE  = %.5f\n", MSE_all[k]))
+  cat(sprintf("   RMSE = %.5f\n", RMSE_all[k]))
+  if (!is.na(n_best_all[k])) {
+    cat(sprintf("   n*   = %.3f\n", n_best_all[k]))
+  }
+  cat("\n")
+}
+cat("============================================\n")
+cat("Лучший метод по MAPE:\n")
+cat("   ", best_name, "\n")
+cat(sprintf("   MAPE = %.5f\n", MAPE_all[best_idx]))
+if (!is.na(n_best_all[best_idx])) {
+  cat(sprintf("   n*   = %.3f\n", n_best_all[best_idx]))
+}
+cat("============================================\n")
+
+# ============================================================
+# Построение графиков
+# ============================================================
+par(mfrow = c(2, 2))
+
+# 1. Исходный ряд dt
+plot(dt, type = "o", col = "blue", pch = 16,
+     main = "Исходный ряд dt", xlab = "Индекс", ylab = "dt")
+grid()
+
+# 2. Факт dt и все 4 прогноза
+plot(dt, type = "o", col = "blue", pch = 16, lwd = 2,
+     ylim = range(c(dt, unlist(ut_all)), na.rm = TRUE),
+     main = "Факт dt и прогнозы (4 метода)",
+     xlab = "Индекс", ylab = "Значение")
+colors <- c("red", "orange", "purple", "brown")
+for (k in 1:4) {
+  lines(ut_all[[k]], type = "o", col = colors[k], pch = 15 + k)
+}
+legend("topleft", legend = c("dt (факт)", methods),
+       col = c("blue", colors), pch = c(16, 16:19),
+       lty = 1, cex = 0.7)
+
+# 3. Факт dt и лучший прогноз
+plot(dt, type = "o", col = "blue", pch = 16, lwd = 2,
+     ylim = range(c(dt, best_ut), na.rm = TRUE),
+     main = paste0("Лучший метод (MAPE = ", round(MAPE_all[best_idx], 5), ")"),
+     xlab = "Индекс", ylab = "Значение")
+lines(best_ut, type = "o", col = "red", pch = 17, lwd = 2)
+legend("topleft", legend = c("dt (факт)", "Лучший прогноз"),
+       col = c("blue", "red"), pch = c(16, 17), lty = 1)
+
+# 4. Сравнение MAPE по методам (барчарт)
+barplot(MAPE_all,
+        names.arg = c("Метод 1", "Метод 2", "Метод 3", "Метод 4"),
+        col = c("steelblue", "orange", "purple", "brown"),
+        main = "Сравнение MAPE по методам",
+        ylab = "MAPE")
+abline(h = MAPE_all[best_idx], col = "red", lty = 2)
+mtext(paste0("Лучший: ", best_name), side = 3, line = -1.5,
+      col = "red", cex = 0.8)
